@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Double Columnar Transposition</title>
+    <style>
+        table { border-collapse: collapse; margin: 10px 0; }
+        td, th { border: 1px solid black; padding: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<h2>Double Columnar Transposition Cipher</h2>
+
+<label>Enter Plaintext:</label><br>
+<input type="text" id="plaintext"><br><br>
+
+<label>Enter Key:</label><br>
+<input type="text" id="key"><br><br>
+
+<button onclick="encrypt()">Encrypt</button>
+
+<div id="output"></div>
+
+<script>
+
+let finalCipher = "";
+
+// Preprocess
+function preprocess(text) {
+    return text.replace(/\s+/g, '').toUpperCase();
+}
+
+// Column order
+function getOrder(key) {
+    let sorted = key.split('').slice().sort();
+    let order = [];
+
+    for (let i = 0; i < key.length; i++) {
+        let index = sorted.indexOf(key[i]);
+        order.push(index);
+        sorted[index] = null;
+    }
+    return order;
+}
+
+// Create matrix row-wise
+function createMatrix(text, cols) {
+    let rows = Math.ceil(text.length / cols);
+    let matrix = [];
+    let k = 0;
+
+    for (let i = 0; i < rows; i++) {
+        matrix[i] = [];
+        for (let j = 0; j < cols; j++) {
+            matrix[i][j] = k < text.length ? text[k++] : 'X';
+        }
+    }
+    return matrix;
+}
+
+// Display matrix
+function displayMatrix(matrix, key, order) {
+    let html = "<table><tr>";
+    for (let i = 0; i < key.length; i++) {
+        html += "<th>" + key[i] + "<br>(" + order[i] + ")</th>";
+    }
+    html += "</tr>";
+
+    for (let i = 0; i < matrix.length; i++) {
+        html += "<tr>";
+        for (let j = 0; j < matrix[i].length; j++) {
+            html += "<td>" + matrix[i][j] + "</td>";
+        }
+        html += "</tr>";
+    }
+
+    html += "</table>";
+    return html;
+}
+
+// Read columns
+function readColumns(matrix, order) {
+    let cols = order.length;
+    let rows = matrix.length;
+    let result = "";
+
+    for (let i = 0; i < cols; i++) {
+        let colIndex = order.indexOf(i);
+        for (let j = 0; j < rows; j++) {
+            result += matrix[j][colIndex];
+        }
+    }
+    return result;
+}
+
+// Encryption (unchanged)
+function columnar(text, key) {
+    let clean = preprocess(text);
+    let matrix = createMatrix(clean, key.length);
+    let order = getOrder(key);
+    let cipher = readColumns(matrix, order);
+
+    return { matrix, order, cipher };
+}
+
+// 🔴 Decryption using COLUMN-WISE filling visualization
+function decrypt(cipher, key) {
+
+    let cols = key.length;
+    let rows = Math.ceil(cipher.length / cols);
+    let order = getOrder(key);
+
+    let resultMatrix = Array.from({ length: rows }, () => Array(cols).fill(''));
+
+    let explanation = "<h3>Decryption Process</h3>";
+
+    explanation += "<b>Column Order Mapping:</b><br>";
+    explanation += order.map((v, i) => `${i} → col ${v}`).join("<br>") + "<br><br>";
+
+    // Step-by-step column filling
+    let k = 0;
+
+    for (let i = 0; i < cols; i++) {
+        let colIndex = order.indexOf(i);
+
+        explanation += `<b>Filling Column ${colIndex}:</b><br>`;
+
+        for (let j = 0; j < rows; j++) {
+            if (k < cipher.length) {
+                let char = cipher[k++];
+                resultMatrix[j][colIndex] = char;
+                explanation += `${char} `;
+            }
+        }
+
+        explanation += "<br><br>";
+    }
+
+    // Display reconstructed matrix
+    explanation += "<b>Reconstructed Matrix:</b>";
+    explanation += displayMatrix(resultMatrix, key, order);
+
+    // Read row-wise
+    let intermediate = "";
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            intermediate += resultMatrix[i][j];
+        }
+    }
+
+    explanation += "<b>Row-wise Read:</b> " + intermediate + "<br>";
+
+    return { explanation, intermediate };
+}
+
+// Encryption UI
+function encrypt() {
+    let text = document.getElementById("plaintext").value;
+    let key = document.getElementById("key").value.toUpperCase();
+
+    let first = columnar(text, key);
+    let second = columnar(first.cipher, key);
+
+    finalCipher = second.cipher;
+
+    document.getElementById("output").innerHTML = `
+        <h3>Encryption</h3>
+
+        <b>Step 1 Matrix:</b>
+        ${displayMatrix(first.matrix, key, first.order)}
+        Cipher Text 1: ${first.cipher}
+
+        <b>Step 2 Matrix:</b>
+        ${displayMatrix(second.matrix, key, second.order)}
+        Final Cipher Text: ${second.cipher}
+
+        <br><br>
+        <button onclick="runDecryption()">Decrypt</button>
+    `;
+}
+
+// Decryption trigger (double pass)
+function runDecryption() {
+    let key = document.getElementById("key").value.toUpperCase();
+
+    // First reverse (Final Cipher → Cipher 1)
+    let step1 = decrypt(finalCipher, key);
+
+    // Second reverse (Cipher 1 → Plaintext)
+    let step2 = decrypt(step1.intermediate, key);
+
+    document.getElementById("output").innerHTML += `
+        <hr>
+        ${step1.explanation}
+        <hr>
+        <h3>Second Decryption Pass</h3>
+        ${step2.explanation}
+        <b>Final Plaintext:</b> ${step2.intermediate}
+    `;
+}
+
+</script>
+
+</body>
+</html>
